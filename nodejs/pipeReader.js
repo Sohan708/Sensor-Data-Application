@@ -2,10 +2,12 @@
  * Pipe Reader module for reading data from the named pipe
  */
 const fs = require('fs');
+const readline = require('readline');
 const config = require('./config');
-const apiClient = require('./apiClient');
 
-let pipeReader = null;
+let fd = null;
+let readStream = null;
+let rl = null;
 
 /**
  * Set up the reader for the named pipe
@@ -13,51 +15,46 @@ let pipeReader = null;
 function setupPipeReader() {
     console.log(`Setting up pipe reader for ${config.pipe}`);
     
-    // Check if pipe exists
     try {
+        // Check if pipe exists
         if (!fs.existsSync(config.pipe)) {
             console.log(`Pipe ${config.pipe} does not exist. Waiting for it to be created...`);
             setTimeout(setupPipeReader, 5000);
             return;
         }
-
-        pipeReader = fs.createReadStream(config.pipe, { encoding: 'utf8' });
+        
+        // Open the named pipe in read-only mode
+        fd = fs.openSync(config.pipe, 'r');
+        readStream = fs.createReadStream(null, { fd });
         console.log('Pipe reader created successfully');
-
-        let buffer = '';
-
-        pipeReader.on('data', (chunk) => {
-            buffer += chunk;
-            
-            // Process complete JSON objects
-            const endIndex = buffer.lastIndexOf('}');
-            if (endIndex !== -1) {
-                const jsonStr = buffer.substring(0, endIndex + 1);
-                buffer = buffer.substring(endIndex + 1);
-                
-                try {
-                    const data = JSON.parse(jsonStr);
-                    console.log(`Received data from sensor: ${data.sensor_id} at ${data.date}`);
-                    apiClient.sendToAPI(data);
-                } catch (error) {
-                    console.error('Error parsing JSON:', error);
-                }
-            }
+        
+        // Create a readline interface
+        rl = readline.createInterface({
+            input: readStream,
+            crlfDelay: Infinity,
         });
-
-        pipeReader.on('error', (err) => {
+        
+        // Process line by line
+        rl.on('line', (line) => {
+            // Simply display the raw data without processing
+            console.log('Data received:', line);
+        });
+        
+        // Handle pipe closure
+        rl.on('close', () => {
+            console.log('Pipe closed. Reopening...');
+            closePipeReader();
+            // Try to reestablish connection after delay
+            setTimeout(setupPipeReader, 5000);
+        });
+        
+        readStream.on('error', (err) => {
             console.error('Error reading from pipe:', err);
-            pipeReader.close();
+            closePipeReader();
             // Try to reestablish connection after delay
             setTimeout(setupPipeReader, 5000);
         });
-
-        pipeReader.on('end', () => {
-            console.log('Pipe ended. Reopening...');
-            pipeReader.close();
-            // Try to reestablish connection after delay
-            setTimeout(setupPipeReader, 5000);
-        });
+        
     } catch (err) {
         console.error('Error setting up pipe reader:', err);
         setTimeout(setupPipeReader, 5000);
@@ -68,9 +65,24 @@ function setupPipeReader() {
  * Close the pipe reader
  */
 function closePipeReader() {
-    if (pipeReader) {
-        pipeReader.close();
-        pipeReader = null;
+    if (rl) {
+        rl.close();
+        rl = null;
+    }
+    
+    if (readStream) {
+        readStream.close();
+        readStream = null;
+    }
+    
+    if (fd !== null) {
+        try {
+            fs.closeSync(fd);
+            console.log('Pipe closed successfully');
+        } catch (err) {
+            console.error('Error closing pipe:', err);
+        }
+        fd = null;
     }
 }
 
@@ -78,3 +90,6 @@ module.exports = {
     setupPipeReader,
     closePipeReader
 };
+
+// Initialize pipe reader when module is loaded
+setupPipeReader();
