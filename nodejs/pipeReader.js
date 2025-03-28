@@ -4,6 +4,7 @@
 const fs = require('fs');
 const readline = require('readline');
 const config = require('./config');
+const apiClient = require('./apiClient');
 
 let fd = null;
 let readStream = null;
@@ -36,8 +37,32 @@ function setupPipeReader() {
         
         // Process line by line
         rl.on('line', (line) => {
-            // Simply display the raw data without processing
-            console.log('Data received:', line);
+            try {
+                // Log the raw data
+                console.log('Raw data received:', line);
+                
+                // Regular expression to match the fields and temperature values
+                const regex = /id:\s*(\S+),\s*date:\s*(\S+),\s*time:\s*(\S+:\S+:\S+:\S+),\s*PTAT:\s*([0-9.-]+)\s*\[degC\],\s*Temperature:\s*((?:[0-9.-]+\s*,\s*)+[0-9.-]+)\s*\[degC\]/;
+                const match = line.match(regex);
+        
+                if (match) {
+                    // Extract values from the match
+                    const sensorData = {
+                        sensor_id: match[1],
+                        date: match[2],
+                        time: match[3],
+                        PTAT: parseFloat(match[4]),
+                        temperature_data: match[5].split(',').map(temp => parseFloat(temp.trim()))
+                    };
+                    
+                    // Process the data
+                    apiClient.processData(sensorData);
+                } else {
+                    throw new Error('Unable to parse sensor data');
+                }
+            } catch (error) {
+                console.error('Error processing sensor data:', error.message);
+            }
         });
         
         // Handle pipe closure
@@ -84,6 +109,9 @@ function closePipeReader() {
         }
         fd = null;
     }
+    
+    // Close MongoDB connection
+    apiClient.closeMongoDB();
 }
 
 module.exports = {
