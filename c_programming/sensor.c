@@ -43,7 +43,7 @@
 #define N_ROW 4
 #define N_PIXEL (4 * 4)
 #define N_READ ((N_PIXEL + 1) * 2 + 1)
-#define RASPBERRY_PI_I2C    "/dev/i2c-1"
+#define RASPBERRY_PI_I2C    "/dev/i2c-0"
 #define I2CDEV              RASPBERRY_PI_I2C
 #define PIPE_NAME "/tmp/sensor_data_pipe"  // Named pipe location
 

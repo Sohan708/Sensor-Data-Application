@@ -44,14 +44,14 @@ function detectAnomalies(temperatureData) {
     const minTemp = Math.min(...temperatureData);
     if (minTemp < config.temperature.minNormal) {
         isAbnormal = true;
-        anomalyReason = `Temperature exceeded ${config.temperature.minNormal}°C above`;
+        anomalyReason = `温度が ${config.temperature.minNormal}°C未満になりました`;
     }
     
     // Check for too high temperatures
     const maxTemp = Math.max(...temperatureData);
     if (maxTemp > config.temperature.maxNormal) {
         isAbnormal = true;
-        anomalyReason = `Temperature exceeded ${config.temperature.maxNormal}°C up`;
+        anomalyReason = `温度が ${config.temperature.maxNormal}°Cを超えました`;
     }
     
     return {
@@ -65,10 +65,39 @@ function detectAnomalies(temperatureData) {
 /**
  * Get alert status text based on anomaly state
  * @param {Boolean} isAbnormal - Whether the temperature is abnormal
- * @returns {String} - 'active' or 'recovered'
+ * @returns {String} - '１：異常' or '0 ：正常'
  */
 function getAlertStatus(isAbnormal) {
-    return isAbnormal ? 'active' : 'recovered';
+    return isAbnormal ? '１：異常' : '0 ：正常';
+}
+
+// ===== DATA PROCESSING UTILITIES =====
+
+/**
+ * Calculate the average value from an array of sensor data
+ * @param {Array} dataArray - Array of numeric sensor readings
+ * @returns {Number} - The calculated average value or 0 if array is empty
+ */
+function calculateAverage(dataArray) {
+    if (!Array.isArray(dataArray) || dataArray.length === 0) {
+        return 0;
+    }
+    return dataArray.reduce((sum, value) => sum + value, 0) / dataArray.length;
+}
+
+/**
+ * Format JSON data for display in a human-readable format
+ * @param {Object|Array} data - The data to format
+ * @param {Number} indent - Number of spaces for indentation (default: 2)
+ * @returns {String} - Formatted JSON string
+ */
+function formatJsonForDisplay(data, indent = 2) {
+    try {
+        return JSON.stringify(data, null, indent);
+    } catch (error) {
+        console.error('Error formatting JSON data:', error.message);
+        return 'Error: Unable to format data as JSON';
+    }
 }
 
 // ===== TEMPERATURE DATA SCHEMA =====
@@ -100,7 +129,8 @@ function createTemperatureDocument(data, isAbnormal = false) {
         date: dateTime.date,
         time: dateTime.time,
         temperature_data: temperatureData,
-        alert_flag: isAbnormal ? 1 : 0,
+        temperature_ave: calculateAverage(temperatureData),
+        alert_flag: isAbnormal ? '１：異常' : '0 ：正常',
         created_at: dateTime.created_at
     };
 }
@@ -128,7 +158,7 @@ function createAlertDocument(data, isAbnormal, reason) {
         date: dateTime.date,
         time: dateTime.time,
         alert_reason: reason,
-        status: isAbnormal ? 'active' : 'recovered',
+        status: isAbnormal ? '１：異常' : '0 ：正常',
         created_at: dateTime.created_at
     };
 }
@@ -141,6 +171,10 @@ module.exports = {
     // Anomaly detection
     detectAnomalies,
     getAlertStatus,
+    
+    // Data processing utilities
+    calculateAverage,
+    formatJsonForDisplay,
     
     // Schema functions
     createTemperatureDocument,

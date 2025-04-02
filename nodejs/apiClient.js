@@ -82,7 +82,7 @@ async function processData(rawData) {
             const alertRecord = createAlertDocument(
                 data, 
                 anomalyResult.isAbnormal,
-                anomalyResult.isAbnormal ? anomalyResult.anomalyReason : 'Temperature returned to normal'
+                anomalyResult.isAbnormal ? anomalyResult.anomalyReason : '温度が正常範囲に戻りました'
             );
             
             // Record the state change in the alerts_log collection
